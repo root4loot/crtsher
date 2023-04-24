@@ -118,12 +118,12 @@ func (r *Result) Domain() string {
 	return u.Hostname()
 }
 
-func (r *Runner) query(ctx context.Context, target string, client *http.Client) {
+func (r *Runner) query(ctx context.Context, target string, client *http.Client) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://crt.sh/?q="+url.QueryEscape(target)+"&output=json", nil)
 
 	if err != nil {
 		log.Warningf("%v", err.Error())
-		r.Results <- Result{Error: err}
+		return err
 	}
 
 	if r.Options.UserAgent != "" {
@@ -133,20 +133,20 @@ func (r *Runner) query(ctx context.Context, target string, client *http.Client) 
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Warningf("%v", err.Error())
-		r.Results <- Result{Query: target, Error: err}
+		return err
 	}
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Warningf("%v", err.Error())
-		r.Results <- Result{Query: target, Error: err}
+		return err
 	}
 
 	var results []Result
 	err = json.Unmarshal(bodyBytes, &results)
 	if err != nil {
 		log.Warningf("%v", err.Error())
-		r.Results <- Result{Query: target, Error: err}
+		return err
 	}
 
 	for _, result := range results {
@@ -156,6 +156,7 @@ func (r *Runner) query(ctx context.Context, target string, client *http.Client) 
 			r.Results <- result
 		}
 	}
+	return nil
 }
 
 // delay returns total delay from options
