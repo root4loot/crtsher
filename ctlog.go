@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/levels"
 	log "github.com/root4loot/ctlog/pkg/log"
 )
 
@@ -58,9 +60,7 @@ func DefaultOptions() *Options {
 	return &Options{
 		Concurrency: 10,
 		Timeout:     30,
-		Delay:       0,
-		DelayJitter: 0,
-		UserAgent:   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:103.0) Gecko/20100101 Firefox/103.0",
+		Verbose:     true,
 	}
 }
 
@@ -86,7 +86,9 @@ func NewRunner() *Runner {
 func (r *Runner) Run(targets ...string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 	seen = make(map[string]bool)
-	defer cancel()
+	if r.Options.Verbose {
+		gologger.DefaultLogger.SetMaxLevel(levels.LevelDebug)
+	}
 
 	sem := make(chan struct{}, r.Options.Concurrency)
 	var wg sync.WaitGroup
