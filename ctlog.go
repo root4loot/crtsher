@@ -87,7 +87,6 @@ func NewRunner() *Runner {
 
 // Run starts the runner
 func (r *Runner) Run(targets ...string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 	seen = make(map[string]bool)
 	defer close(r.Results)
 
@@ -99,6 +98,8 @@ func (r *Runner) Run(targets ...string) {
 	var wg sync.WaitGroup
 
 	for _, target := range targets {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+		defer cancel()
 		if !r.Visited[target] {
 			r.Visited[target] = true
 
