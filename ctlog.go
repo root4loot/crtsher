@@ -121,7 +121,6 @@ func (r *Result) Domain() string {
 	domain := strings.Trim(r.CommonName, "*.")
 	u, err := url.Parse("http://" + domain)
 	if err != nil {
-		log.Warningf("%v", err.Error())
 		return ""
 	}
 	return u.Hostname()
