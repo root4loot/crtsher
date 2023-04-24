@@ -133,21 +133,20 @@ func (r *Runner) query(ctx context.Context, target string, client *http.Client) 
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Warningf("%v", err.Error())
+		r.Results <- Result{Query: target, Error: err}
 	}
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Warningf("%v", err.Error())
+		r.Results <- Result{Query: target, Error: err}
 	}
 
 	var results []Result
 	err = json.Unmarshal(bodyBytes, &results)
 	if err != nil {
 		log.Warningf("%v", err.Error())
-	}
-
-	if len(results) != 0 {
-		log.Warningf("No results found for %v", target)
+		r.Results <- Result{Query: target, Error: err}
 	}
 
 	for _, result := range results {
