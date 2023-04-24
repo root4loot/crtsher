@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -165,4 +166,9 @@ func (r *Runner) getDelay() time.Duration {
 		return time.Duration(r.Options.Delay + rand.Intn(r.Options.DelayJitter))
 	}
 	return time.Duration(r.Options.Delay)
+}
+
+func isTimeoutError(err error) bool {
+	e, ok := err.(net.Error)
+	return ok && e.Timeout()
 }
