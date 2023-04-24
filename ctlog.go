@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -127,10 +128,11 @@ func (r *Result) Domain() string {
 }
 
 func (r *Runner) query(ctx context.Context, target string, client *http.Client) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://crt.sh/?q="+url.QueryEscape(target)+"&output=json", nil)
+	endpoint := "https://crt.sh/?q=" + url.QueryEscape(target) + "&output=json"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 
 	if err != nil {
-		log.Warningf("%v", err.Error())
+		log.Errorf("%v", err.Error())
 		return err
 	}
 
@@ -138,32 +140,60 @@ func (r *Runner) query(ctx context.Context, target string, client *http.Client) 
 		req.Header.Add("User-Agent", r.Options.UserAgent)
 	}
 
+	// dump, _ := httputil.DumpRequestOut(req, true)
+	// fmt.Println(string(dump))
+
 	resp, err := client.Do(req)
-	if err != nil {
-		log.Warningf("%v", err.Error())
-		return err
-	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Warningf("%v", err.Error())
-		return err
-	}
+		if isTimeoutError(err) {
+			if errors.Is(err, context.DeadlineExceeded) {
+				log.Errorf("timeout exceeded (%s) - trying again after 4 seconds", endpoint)
+				time.Sleep(time.Millisecond * 4000) // wait some
+				ctx2, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+				r.query(ctx2, target, client)
+				cancel()
+				return nil
+			}
+		} else {
+			log.Warningf("%v - %s", err.Error(), target)
+			return nil
+		}
+	} else {
+		// try again if too many requests
+		if resp.StatusCode == http.StatusTooManyRequests {
+			log.Errorf("%s", "too many requests - wait and try again (consider lowering concurrency)")
+			time.Sleep(time.Millisecond * 10000) // wait some
+			ctx2, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+			r.query(ctx2, target, client)
+			cancel()
+			return nil
+		}
 
-	var results []Result
-	err = json.Unmarshal(bodyBytes, &results)
-	if err != nil {
-		log.Warningf("%v", err.Error())
-		return err
-	}
+		// try again if bad gateway
+		if resp.StatusCode == http.StatusBadGateway {
+			log.Errorf("bad gateway (%s) - trying again after 5 seconds", endpoint)
+			time.Sleep(time.Millisecond * 5000) // wait some
+			ctx2, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+			r.query(ctx2, target, client)
+			cancel()
+			return nil
+		}
 
-	for _, result := range results {
-		if !seen[result.CommonName] {
-			seen[result.CommonName] = true
-			result.Query = target
-			r.Results <- result
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+
+		var results []Result
+		_ = json.Unmarshal(bodyBytes, &results)
+
+		for _, result := range results {
+			if !seen[result.CommonName] {
+				seen[result.CommonName] = true
+				result.Query = target
+				r.Results <- result
+			}
 		}
 	}
+
 	return nil
 }
 
