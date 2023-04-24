@@ -76,8 +76,8 @@ func NewRunner() *Runner {
 		Options: *options,
 		client: &http.Client{
 			Transport: &http.Transport{
+				ForceAttemptHTTP2:     true,
 				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-				MaxIdleConnsPerHost:   options.Concurrency,
 				ResponseHeaderTimeout: time.Duration(options.Timeout) * time.Second,
 			},
 			Timeout: time.Duration(options.Timeout) * time.Second,
