@@ -89,6 +89,8 @@ func NewRunner() *Runner {
 func (r *Runner) Run(targets ...string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 	seen = make(map[string]bool)
+	defer close(r.Results)
+
 	if r.Options.Verbose {
 		gologger.DefaultLogger.SetMaxLevel(levels.LevelDebug)
 	}
