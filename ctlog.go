@@ -58,8 +58,11 @@ var seen map[string]bool // map of seen domains
 // DefaultOptions returns default options
 func DefaultOptions() *Options {
 	return &Options{
-		Concurrency: 10,
+		Concurrency: 3,
 		Timeout:     30,
+		Delay:       2,
+		DelayJitter: 1,
+		UserAgent:   "ctlog",
 		Verbose:     true,
 	}
 }
