@@ -3,12 +3,11 @@
 # ctlog
 A package used to obtain domains from transparancy logs, either by domain or organization name.
 
-
-## Usage
-
 ```
 go get github.com/root4loot/ctlog@master
 ```
+
+See [Examples](https://github.com/root4loot/ctlog/tree/master/examples)
 
 ```go
 package main
@@ -20,22 +19,15 @@ import (
 )
 
 func main() {
-	targets := []string{"Hackerone Inc", "example.com"}
-
-	// initialize runner
-	ctlog := ctlog.NewRunner()
-
-	// process results
-	go func() {
-		for result := range ctlog.Results {
-			if result.Domain() != "" {
-				fmt.Println(result.Domain())
+	// run ctlog against targets
+	results := ctlog.Multiple([]string{"example.com", "Hackerone Inc"})
+	for _, result := range results {
+		for _, res := range result {
+			if res.Domain() != "" {
+				fmt.Println(res.Domain())
 			}
 		}
-	}()
-
-	// run ctlog against targets
-	ctlog.Run(targets...)
+	}
 }
 ```
 

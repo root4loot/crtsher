@@ -86,9 +86,30 @@ func NewRunner() *Runner {
 	}
 }
 
-// Run starts the runner
-func (r *Runner) Run(targets ...string) {
-	seen = make(map[string]bool)
+// Single runs ctlog against a single target and waits for results to be returned
+func Single(target string) (results []Result) {
+	r := NewRunner()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+	defer cancel()
+	results = r.query(ctx, target, r.client)
+	return
+}
+
+// Multiple runs ctlog against multiple targets and waits for results to be returned
+func Multiple(targets []string) (results [][]Result) {
+	r := NewRunner()
+
+	for _, target := range targets {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+		defer cancel()
+		res := r.query(ctx, target, r.client)
+		results = append(results, res)
+	}
+	return
+}
+
+// MultipleStream runs ctlog against multiple targets and streams results to Results channel
+func (r *Runner) MultipleStream(targets []string) {
 	defer close(r.Results)
 
 	if r.Options.Verbose {
@@ -97,7 +118,6 @@ func (r *Runner) Run(targets ...string) {
 
 	sem := make(chan struct{}, r.Options.Concurrency)
 	var wg sync.WaitGroup
-
 	for _, target := range targets {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 		defer cancel()
@@ -109,7 +129,11 @@ func (r *Runner) Run(targets ...string) {
 			go func(u string) {
 				defer func() { <-sem }()
 				defer wg.Done()
-				r.query(ctx, u, r.client)
+				results := r.query(ctx, u, r.client)
+				for _, res := range results {
+					res.Query = u
+					r.Results <- res
+				}
 				time.Sleep(time.Millisecond * 100) // make room for processing results
 			}(target)
 			time.Sleep(r.getDelay() * time.Millisecond) // delay between requests
@@ -118,8 +142,8 @@ func (r *Runner) Run(targets ...string) {
 	wg.Wait()
 }
 
-func (r *Result) Domain() string {
-	domain := strings.Trim(r.CommonName, "*.")
+func (r *Result) Domain() (domain string) {
+	domain = strings.Trim(r.CommonName, "*.")
 	u, err := url.Parse("http://" + domain)
 	if err != nil {
 		return ""
@@ -127,13 +151,14 @@ func (r *Result) Domain() string {
 	return u.Hostname()
 }
 
-func (r *Runner) query(ctx context.Context, target string, client *http.Client) error {
+func (r *Runner) query(ctx context.Context, target string, client *http.Client) (results []Result) {
 	endpoint := "https://crt.sh/?q=" + url.QueryEscape(target) + "&output=json"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	seen = make(map[string]bool)
 
 	if err != nil {
 		log.Errorf("%v", err.Error())
-		return err
+		return nil
 	}
 
 	if r.Options.UserAgent != "" {
@@ -182,19 +207,18 @@ func (r *Runner) query(ctx context.Context, target string, client *http.Client) 
 
 		bodyBytes, _ := ioutil.ReadAll(resp.Body)
 
-		var results []Result
 		_ = json.Unmarshal(bodyBytes, &results)
 
-		for _, result := range results {
-			if !seen[result.CommonName] {
-				seen[result.CommonName] = true
-				result.Query = target
-				r.Results <- result
+		for i := range results {
+			if !seen[results[i].CommonName] {
+				seen[results[i].CommonName] = true
+				results[i].Query = target
+				results = append(results, results[i])
 			}
 		}
 	}
 
-	return nil
+	return
 }
 
 // delay returns total delay from options

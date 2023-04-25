@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	targets := []string{"Hackerone Inc", "example.com"}
+	targets := []string{"Hackerone Inc", "example.com", "google.com"}
 
 	// initialize runner
 	ctlog := ctlog.NewRunner()
@@ -22,5 +22,5 @@ func main() {
 	}()
 
 	// run ctlog against targets
-	ctlog.Run(targets...)
+	ctlog.MultipleStream(targets)
 }
