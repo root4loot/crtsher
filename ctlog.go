@@ -97,8 +97,13 @@ func Single(target string) (results []Result) {
 }
 
 // Multiple runs ctlog against multiple targets and waits for results to be returned
-func Multiple(targets []string) (results [][]Result) {
+// Allows for options to be optionally passed
+func Multiple(targets []string, options ...Options) (results [][]Result) {
 	r := NewRunner()
+
+	if len(options) > 0 {
+		r.Options = &options[0]
+	}
 
 	for _, target := range targets {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
