@@ -105,6 +105,11 @@ func Multiple(targets []string, options ...Options) (results [][]Result) {
 		r.Options = &options[0]
 	}
 
+	// limit concurrency to number of targets
+	if r.Options.Concurrency > len(targets) {
+		r.Options.Concurrency = len(targets)
+	}
+
 	for _, target := range targets {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 		defer cancel()
@@ -117,6 +122,11 @@ func Multiple(targets []string, options ...Options) (results [][]Result) {
 // MultipleStream runs ctlog against multiple targets and streams results to Results channel
 func (r *Runner) MultipleStream(targets []string) {
 	defer close(r.Results)
+
+	// limit concurrency to number of targets
+	if r.Options.Concurrency > len(targets) {
+		r.Options.Concurrency = len(targets)
+	}
 
 	if r.Options.Verbose {
 		gologger.DefaultLogger.SetMaxLevel(levels.LevelDebug)
