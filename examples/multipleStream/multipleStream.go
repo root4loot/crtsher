@@ -10,11 +10,20 @@ func main() {
 	targets := []string{"Hackerone Inc", "example.com", "google.com"}
 
 	// initialize runner
-	ctlog := ctlog.NewRunner()
+	runner := ctlog.NewRunner()
+
+	runner.Options = &ctlog.Options{
+		Concurrency: len(targets),
+		Timeout:     90,
+		Delay:       2,
+		DelayJitter: 1,
+		UserAgent:   "ctlog",
+		Verbose:     true,
+	}
 
 	// process results
 	go func() {
-		for result := range ctlog.Results {
+		for result := range runner.Results {
 			if result.Domain() != "" {
 				fmt.Println(result.Domain())
 			}
@@ -22,5 +31,5 @@ func main() {
 	}()
 
 	// run ctlog against targets
-	ctlog.MultipleStream(targets)
+	runner.MultipleStream(targets)
 }

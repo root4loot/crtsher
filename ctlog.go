@@ -20,7 +20,7 @@ import (
 )
 
 type Runner struct {
-	Options Options         // options for the runner
+	Options *Options        // options for the runner
 	client  *http.Client    // http client
 	Results chan Result     // channel to receive results
 	Visited map[string]bool // map of visited targets
@@ -74,7 +74,7 @@ func NewRunner() *Runner {
 	return &Runner{
 		Results: make(chan Result),
 		Visited: make(map[string]bool),
-		Options: *options,
+		Options: options,
 		client: &http.Client{
 			Transport: &http.Transport{
 				ForceAttemptHTTP2:     true,
