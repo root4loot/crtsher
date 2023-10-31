@@ -14,9 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/projectdiscovery/gologger"
-	"github.com/projectdiscovery/gologger/levels"
-	log "github.com/root4loot/ctlog/pkg/log"
+	"github.com/root4loot/relog"
+)
+
+var (
+	log = relog.NewLogger("ctlog")
 )
 
 type Runner struct {
@@ -71,6 +73,11 @@ func DefaultOptions() *Options {
 // NewRunner returns a new runner
 func NewRunner() *Runner {
 	options := DefaultOptions()
+
+	if options.Verbose {
+		log.SetLevel(relog.DebugLevel)
+	}
+
 	return &Runner{
 		Results: make(chan Result),
 		Visited: make(map[string]bool),
@@ -88,6 +95,8 @@ func NewRunner() *Runner {
 
 // Single runs ctlog against a single target and waits for results to be returned
 func Single(target string) (results []Result) {
+	log.Debug("Running against single target: ", target)
+
 	r := NewRunner()
 	r.Options.Concurrency = 1
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
@@ -102,7 +111,10 @@ func Multiple(targets []string, options ...Options) (results [][]Result) {
 	r := NewRunner()
 
 	if len(options) > 0 {
+		log.Debug("Running against multiple targets (with options)")
 		r.Options = &options[0]
+	} else {
+		log.Debug("Running against multiple targets")
 	}
 
 	// limit concurrency to number of targets
@@ -121,15 +133,12 @@ func Multiple(targets []string, options ...Options) (results [][]Result) {
 
 // MultipleStream runs ctlog against multiple targets and streams results to Results channel
 func (r *Runner) MultipleStream(targets []string) {
+	log.Debug("Running async against multiple targets")
 	defer close(r.Results)
 
 	// limit concurrency to number of targets
 	if r.Options.Concurrency > len(targets) {
 		r.Options.Concurrency = len(targets)
-	}
-
-	if r.Options.Verbose {
-		gologger.DefaultLogger.SetMaxLevel(levels.LevelDebug)
 	}
 
 	sem := make(chan struct{}, r.Options.Concurrency)
@@ -168,6 +177,8 @@ func (r *Result) Domain() (domain string) {
 }
 
 func (r *Runner) query(ctx context.Context, target string, client *http.Client) (results []Result) {
+	log.Debug("Running query against: ", target)
+
 	endpoint := "https://crt.sh/?q=" + url.QueryEscape(target) + "&output=json"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	seen = make(map[string]bool)
