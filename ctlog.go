@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
@@ -221,7 +221,7 @@ func (r *Runner) query(ctx context.Context, target string, client *http.Client) 
 			return nil
 		}
 
-		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(resp.Body)
 
 		_ = json.Unmarshal(bodyBytes, &results)
 
