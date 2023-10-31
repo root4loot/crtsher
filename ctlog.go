@@ -89,6 +89,7 @@ func NewRunner() *Runner {
 // Single runs ctlog against a single target and waits for results to be returned
 func Single(target string) (results []Result) {
 	r := NewRunner()
+	r.Options.Concurrency = 1
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 	defer cancel()
 	results = r.query(ctx, target, r.client)
