@@ -4,7 +4,7 @@
 A package used to obtain domains from transparancy logs, either by domain or organization name.
 
 ```
-go get github.com/root4loot/ctlog@master
+go get github.com/root4loot/ctlog@latest
 ```
 
 See [Examples](https://github.com/root4loot/ctlog/tree/master/examples)
