@@ -1,4 +1,2 @@
-./ctlog
-.DS_Store
-dist/
-.vscode
+.*
+!.gitignore
