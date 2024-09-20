@@ -30,6 +30,5 @@ func main() {
 		}
 	}()
 
-	// run ctlog against targets
-	runner.MultipleStream(targets)
+	runner.RunMultipleAsync(targets)
 }

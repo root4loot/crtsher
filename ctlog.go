@@ -14,11 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/root4loot/relog"
-)
-
-var (
-	log = relog.NewLogger("ctlog")
+	"github.com/root4loot/goutils/log"
 )
 
 type Runner struct {
@@ -28,7 +24,6 @@ type Runner struct {
 	Visited map[string]bool // map of visited targets
 }
 
-// Options contains options for the runner
 type Options struct {
 	Concurrency int    // number of concurrent requests
 	Timeout     int    // timeout in seconds
@@ -58,7 +53,6 @@ type Result struct {
 
 var seen map[string]bool // map of seen domains
 
-// DefaultOptions returns default options
 func DefaultOptions() *Options {
 	return &Options{
 		Concurrency: 3,
@@ -70,12 +64,13 @@ func DefaultOptions() *Options {
 	}
 }
 
-// NewRunner returns a new runner
 func NewRunner() *Runner {
 	options := DefaultOptions()
 
+	log.Init("ctlog")
+
 	if options.Verbose {
-		log.SetLevel(relog.DebugLevel)
+		log.SetLevel(log.DebugLevel)
 	}
 
 	return &Runner{
@@ -93,8 +88,7 @@ func NewRunner() *Runner {
 	}
 }
 
-// Single runs ctlog against a single target and waits for results to be returned
-func Single(target string) (results []Result) {
+func Run(target string) (results []Result) {
 	log.Debug("Running against single target: ", target)
 
 	r := NewRunner()
@@ -105,9 +99,7 @@ func Single(target string) (results []Result) {
 	return
 }
 
-// Multiple runs ctlog against multiple targets and waits for results to be returned
-// Allows for options to be optionally passed
-func Multiple(targets []string, options ...Options) (results [][]Result) {
+func RunMultiple(targets []string, options ...Options) (results [][]Result) {
 	r := NewRunner()
 
 	if len(options) > 0 {
@@ -131,12 +123,10 @@ func Multiple(targets []string, options ...Options) (results [][]Result) {
 	return
 }
 
-// MultipleStream runs ctlog against multiple targets and streams results to Results channel
-func (r *Runner) MultipleStream(targets []string) {
+func (r *Runner) RunMultipleAsync(targets []string) {
 	log.Debug("Running async against multiple targets")
 	defer close(r.Results)
 
-	// limit concurrency to number of targets
 	if r.Options.Concurrency > len(targets) {
 		r.Options.Concurrency = len(targets)
 	}
@@ -161,7 +151,7 @@ func (r *Runner) MultipleStream(targets []string) {
 				}
 				time.Sleep(time.Millisecond * 100) // make room for processing results
 			}(target)
-			time.Sleep(r.getDelay() * time.Millisecond) // delay between requests
+			time.Sleep(r.getDelay() * time.Millisecond)
 		}
 	}
 	wg.Wait()
@@ -177,7 +167,7 @@ func (r *Result) Domain() (domain string) {
 }
 
 func (r *Runner) query(ctx context.Context, target string, client *http.Client) (results []Result) {
-	log.Debug("Running query against: ", target)
+	log.Debug("Running query against:", target)
 
 	endpoint := "https://crt.sh/?q=" + url.QueryEscape(target) + "&output=json"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -208,7 +198,7 @@ func (r *Runner) query(ctx context.Context, target string, client *http.Client) 
 				return nil
 			}
 		} else {
-			log.Warningf("%v - %s", err.Error(), target)
+			log.Warnf("%v - %s", err.Error(), target)
 			return nil
 		}
 	} else {
