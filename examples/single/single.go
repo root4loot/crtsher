@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 
-	"github.com/root4loot/ctlog"
+	"github.com/root4loot/crtsher"
 )
 
 func main() {
-	runner := ctlog.NewRunner()
+	runner := crtsher.NewRunner()
 
 	results := runner.Run("example.com")
 	for _, result := range results {

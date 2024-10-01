@@ -1,6 +1,6 @@
 ![Go version](https://img.shields.io/badge/Go-v1.21-blue.svg) [![Contribute](https://img.shields.io/badge/Contribute-Welcome-green.svg)](CONTRIBUTING.md)
 
-# ctlog
+# crtsher
 
 A tool used to grab domains from certificate transparency logs (crt.sh).
 
@@ -11,21 +11,21 @@ Unlike other tools that often make a single request to crt.sh, this tool is desi
 ## Installation
 
 ```bash
-go get github.com/root4loot/ctlog@latest
+go get github.com/root4loot/crtsher@latest
 ```
 
 ## Docker
 
 ```bash
-git clone https://github.com/root4loot/ctlog
-cd ctlog
+git clone https://github.com/root4loot/crtsher
+cd crtsher
 docker run --rm -it $(docker build -q .) example.com
 ```
 
 ## Usage
 
 ```bash
-Usage: ctlog [options] <domain | orgname>
+Usage: crtsher [options] <domain | orgname>
   -f, --file <file>           Specify input file containing targets, one per line.
   -t, --timeout <seconds>     Set the timeout for each request (default: 90).
   -c, --concurrency <number>  Set the number of concurrent requests (default: 3).
@@ -37,21 +37,21 @@ Search Query Identity:
   - Organization Name
 
 Examples:
-  ctlog example.com
-  ctlog "Hackerone Inc"
-  ctlog --file domains.txt
+  crtsher example.com
+  crtsher "Hackerone Inc"
+  crtsher --file domains.txt
 ```
 
 ## Example Running
 
 ```bash
-$ ctlog example.com
-[ctlog] (INF) Querying example.com
-[ctlog] (RES) www.example.org
-[ctlog] (RES) hosted.jivesoftware.com
-[ctlog] (RES) uat3.hosted.jivesoftware.com
-[ctlog] (RES) www.example.com
-[ctlog] (RES) example.com
+$ crtsher example.com
+[crtsher] (INF) Querying example.com
+[crtsher] (RES) www.example.org
+[crtsher] (RES) hosted.jivesoftware.com
+[crtsher] (RES) uat3.hosted.jivesoftware.com
+[crtsher] (RES) www.example.com
+[crtsher] (RES) example.com
 ```
 
 ## As a Library

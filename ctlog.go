@@ -1,4 +1,4 @@
-package ctlog
+package crtsher
 
 import (
 	"context"
@@ -55,7 +55,7 @@ type Result struct {
 var seen map[string]bool // map of seen domains
 
 func init() {
-	log.Init("ctlog")
+	log.Init("crtsher")
 }
 
 func DefaultOptions() *Options {
@@ -65,7 +65,7 @@ func DefaultOptions() *Options {
 		Concurrency: 3,
 		Timeout:     int(timeout.Seconds()),
 		Delay:       2,
-		UserAgent:   "ctlog",
+		UserAgent:   "crtsher",
 		Debug:       false,
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{

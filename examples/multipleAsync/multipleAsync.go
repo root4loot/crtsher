@@ -3,19 +3,19 @@ package main
 import (
 	"fmt"
 
-	"github.com/root4loot/ctlog"
+	"github.com/root4loot/crtsher"
 )
 
 func main() {
 	targets := []string{"Hackerone Inc", "example.com", "google.com"}
 
-	runner := ctlog.NewRunner()
+	runner := crtsher.NewRunner()
 
-	runner.Options = &ctlog.Options{
+	runner.Options = &crtsher.Options{
 		Concurrency: len(targets),
 		Timeout:     90,
 		Delay:       2,
-		UserAgent:   "ctlog",
+		UserAgent:   "crtsher",
 		Debug:       true,
 	}
 

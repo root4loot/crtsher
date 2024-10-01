@@ -1,4 +1,4 @@
-module github.com/root4loot/ctlog
+module github.com/root4loot/crtsher
 
 go 1.21.1
 

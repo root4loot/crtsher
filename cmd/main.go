@@ -7,14 +7,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/root4loot/ctlog"
+	"github.com/root4loot/crtsher"
 	"github.com/root4loot/goutils/domainutil"
 	"github.com/root4loot/goutils/fileutil"
 	"github.com/root4loot/goutils/log"
 )
 
 const (
-	AppName = "ctlog"
+	AppName = "crtsher"
 	Version = "0.1.0"
 )
 
@@ -23,7 +23,7 @@ func init() {
 }
 
 const usage = `
-Usage: ctlog [options] <domain | orgname> 
+Usage: crtsher [options] <domain | orgname> 
   -f, --file <file>           Specify input file containing targets, one per line.
   -t, --timeout <seconds>     Set the timeout for each request (default: 90).
   -c, --concurrency <number>  Set the number of concurrent requests (default: 3).
@@ -35,14 +35,14 @@ Search Query Identity:
   - Organization Name
 
 Examples:
-  ctlog example.com
-  ctlog "Hackerone Inc"
-  ctlog --file domains.txt
+  crtsher example.com
+  crtsher "Hackerone Inc"
+  crtsher --file domains.txt
 `
 
 func main() {
 	inputList, opts, err := parseCLI()
-	runner := ctlog.NewRunnerWithOptions(opts)
+	runner := crtsher.NewRunnerWithOptions(opts)
 
 	if err != nil {
 		if err.Error() == "version" {
@@ -69,7 +69,7 @@ func main() {
 
 }
 
-func processResults(runner *ctlog.Runner, target ...string) {
+func processResults(runner *crtsher.Runner, target ...string) {
 	go runner.RunMultipleAsync(target)
 
 	printed := make(map[string]bool)
@@ -93,12 +93,12 @@ func processResults(runner *ctlog.Runner, target ...string) {
 	}
 }
 
-func parseCLI() ([]string, *ctlog.Options, error) {
+func parseCLI() ([]string, *crtsher.Options, error) {
 	var version, help bool
 	var inputFilePath string
 	var inputList []string
 
-	opts := *ctlog.DefaultOptions()
+	opts := *crtsher.DefaultOptions()
 
 	flag.StringVar(&inputFilePath, "f", "", "")
 	flag.StringVar(&inputFilePath, "file", "", "")
