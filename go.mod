@@ -1,10 +1,10 @@
 module github.com/root4loot/crtsher
 
-go 1.21.1
+go 1.20
 
 require (
 	dario.cat/mergo v1.0.1
-	github.com/root4loot/goutils v0.0.0-20240930102717-515f7c020fa2
+	github.com/root4loot/goutils v0.0.0-20241001082813-799fb4f452c1
 )
 
 require (
