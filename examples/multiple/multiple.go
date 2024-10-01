@@ -15,11 +15,12 @@ func main() {
 		UserAgent:   "ctlog",
 	}
 
-	results := ctlog.RunMultiple([]string{"example.com", "Hackerone Inc"}, *options)
+	runner := ctlog.NewRunnerWithOptions(options)
+	results := runner.RunMultiple([]string{"example.com", "Hackerone Inc"})
 	for _, result := range results {
 		for _, res := range result {
-			if res.Domain() != "" {
-				fmt.Println(res.Domain())
+			if res.GetCommonName() != "" {
+				fmt.Println(res.GetCommonName())
 			}
 		}
 	}

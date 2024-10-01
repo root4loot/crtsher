@@ -1,6 +1,11 @@
-Contributions are welcome and greatly appreciated. To contribute to the project, please follow these steps:
+# Contributing Guidelines
 
-1. Create an issue to discuss the change you would like to make.
-2. Fork the repository and create a new branch for your feature or bug fix.
-3. Make your changes and ensure that your code passes any existing tests.
-4. Submit a pull request and explain your changes. Please reference the issue number that you created in step 1.
+Thank you for considering contributing to this project.
+
+## How to Contribute
+
+1. **Fork the Repository**: Fork the repository to your GitHub account.
+3. **Make Changes**: Implement your changes in the codebase.
+4. **Commit Changes**: Commit your changes with a clear and concise commit message.
+5. **Push to GitHub**: Push your changes to your forked repository.
+6. **Create a Pull Request**: Go to the original repository on GitHub and create a pull request from your branch.

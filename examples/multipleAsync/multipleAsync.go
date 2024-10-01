@@ -9,23 +9,20 @@ import (
 func main() {
 	targets := []string{"Hackerone Inc", "example.com", "google.com"}
 
-	// initialize runner
 	runner := ctlog.NewRunner()
 
 	runner.Options = &ctlog.Options{
 		Concurrency: len(targets),
 		Timeout:     90,
 		Delay:       2,
-		DelayJitter: 1,
 		UserAgent:   "ctlog",
-		Verbose:     true,
+		Debug:       true,
 	}
 
-	// process results
 	go func() {
 		for result := range runner.Results {
-			if result.Domain() != "" {
-				fmt.Println(result.Domain())
+			if result.GetCommonName() != "" {
+				fmt.Println(result.GetCommonName())
 			}
 		}
 	}()

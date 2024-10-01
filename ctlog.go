@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"io"
 	"math/rand"
 	"net"
@@ -14,23 +13,25 @@ import (
 	"sync"
 	"time"
 
+	"dario.cat/mergo"
 	"github.com/root4loot/goutils/log"
 )
 
 type Runner struct {
-	Options *Options        // options for the runner
-	client  *http.Client    // http client
-	Results chan Result     // channel to receive results
-	Visited map[string]bool // map of visited targets
+	Options *Options
+	client  *http.Client
+	Results chan Result
+	Visited map[string]bool
 }
 
 type Options struct {
-	Concurrency int    // number of concurrent requests
-	Timeout     int    // timeout in seconds
-	Delay       int    // delay in seconds
-	DelayJitter int    // delay jitter in seconds
-	Verbose     bool   // hide info messages
-	UserAgent   string // user agent
+	Concurrency int
+	Timeout     int
+	Delay       int
+	DelayJitter int
+	UserAgent   string
+	Debug       bool
+	HTTPClient  *http.Client
 }
 
 type Results struct {
@@ -53,23 +54,55 @@ type Result struct {
 
 var seen map[string]bool // map of seen domains
 
+func init() {
+	log.Init("ctlog")
+}
+
 func DefaultOptions() *Options {
+	const timeout = 90 * time.Second
+
 	return &Options{
 		Concurrency: 3,
-		Timeout:     90,
+		Timeout:     int(timeout.Seconds()),
 		Delay:       2,
-		DelayJitter: 1,
 		UserAgent:   "ctlog",
-		Verbose:     true,
+		Debug:       false,
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				ForceAttemptHTTP2:     true,
+				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+				ResponseHeaderTimeout: timeout,
+			},
+			Timeout: timeout,
+		},
 	}
 }
 
 func NewRunner() *Runner {
-	options := DefaultOptions()
+	return newRunner(nil)
+}
 
-	log.Init("ctlog")
+func NewRunnerWithOptions(options *Options) *Runner {
+	return newRunner(options)
+}
 
-	if options.Verbose {
+func NewRunnerWithDefaultOptions() *Runner {
+	return newRunner(DefaultOptions())
+}
+
+func newRunner(options *Options) *Runner {
+	defaultOptions := DefaultOptions()
+
+	if options != nil {
+		err := mergo.Merge(options, defaultOptions)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		options = defaultOptions
+	}
+
+	if options.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
 
@@ -77,60 +110,28 @@ func NewRunner() *Runner {
 		Results: make(chan Result),
 		Visited: make(map[string]bool),
 		Options: options,
-		client: &http.Client{
-			Transport: &http.Transport{
-				ForceAttemptHTTP2:     true,
-				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-				ResponseHeaderTimeout: time.Duration(options.Timeout) * time.Second,
-			},
-			Timeout: time.Duration(options.Timeout) * time.Second,
-		},
 	}
 }
 
-func Run(target string) (results []Result) {
-	log.Debug("Running against single target: ", target)
-
-	r := NewRunner()
-	r.Options.Concurrency = 1
+func (r *Runner) Run(target string) (results []Result) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 	defer cancel()
-	results = r.query(ctx, target, r.client)
-	return
+	results = r.query(ctx, target)
+	return uniqueResults(results)
 }
 
-func RunMultiple(targets []string, options ...Options) (results [][]Result) {
-	r := NewRunner()
-
-	if len(options) > 0 {
-		log.Debug("Running against multiple targets (with options)")
-		r.Options = &options[0]
-	} else {
-		log.Debug("Running against multiple targets")
-	}
-
-	// limit concurrency to number of targets
-	if r.Options.Concurrency > len(targets) {
-		r.Options.Concurrency = len(targets)
-	}
-
+func (r *Runner) RunMultiple(targets []string) (results [][]Result) {
 	for _, target := range targets {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 		defer cancel()
-		res := r.query(ctx, target, r.client)
+		res := r.query(ctx, target)
 		results = append(results, res)
 	}
-	return
+	return results
 }
 
 func (r *Runner) RunMultipleAsync(targets []string) {
-	log.Debug("Running async against multiple targets")
 	defer close(r.Results)
-
-	if r.Options.Concurrency > len(targets) {
-		r.Options.Concurrency = len(targets)
-	}
-
 	sem := make(chan struct{}, r.Options.Concurrency)
 	var wg sync.WaitGroup
 	for _, target := range targets {
@@ -144,7 +145,7 @@ func (r *Runner) RunMultipleAsync(targets []string) {
 			go func(u string) {
 				defer func() { <-sem }()
 				defer wg.Done()
-				results := r.query(ctx, u, r.client)
+				results := r.query(ctx, u)
 				for _, res := range results {
 					res.Query = u
 					r.Results <- res
@@ -157,7 +158,7 @@ func (r *Runner) RunMultipleAsync(targets []string) {
 	wg.Wait()
 }
 
-func (r *Result) Domain() (domain string) {
+func (r *Result) GetCommonName() (domain string) {
 	domain = strings.Trim(r.CommonName, "*.")
 	u, err := url.Parse("http://" + domain)
 	if err != nil {
@@ -166,64 +167,72 @@ func (r *Result) Domain() (domain string) {
 	return u.Hostname()
 }
 
-func (r *Runner) query(ctx context.Context, target string, client *http.Client) (results []Result) {
-	log.Debug("Running query against:", target)
+func (r *Result) GetMatchingIdentity() (domain string) {
+	domain = strings.Trim(r.NameValue, "*.")
+	u, err := url.Parse("http://" + domain)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
+func uniqueResults(results []Result) []Result {
+	uniqueMap := make(map[Result]bool)
+	var uniqueList []Result
+	for _, res := range results {
+		if !uniqueMap[res] {
+			uniqueMap[res] = true
+			uniqueList = append(uniqueList, res)
+		}
+	}
+	return uniqueList
+}
+
+func (r *Runner) query(ctx context.Context, target string) (results []Result) {
+	log.Infof("Querying %s", target)
 
 	endpoint := "https://crt.sh/?q=" + url.QueryEscape(target) + "&output=json"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	seen = make(map[string]bool)
 
-	if err != nil {
-		log.Errorf("%v", err.Error())
-		return nil
-	}
+	maxRetries := 5
+	retryDelay := 4 * time.Second
 
-	if r.Options.UserAgent != "" {
-		req.Header.Add("User-Agent", r.Options.UserAgent)
-	}
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			log.Errorf("%v", err.Error())
+			return nil
+		}
 
-	// dump, _ := httputil.DumpRequestOut(req, true)
-	// fmt.Println(string(dump))
+		if r.Options.UserAgent != "" {
+			req.Header.Add("User-Agent", r.Options.UserAgent)
+		}
 
-	resp, err := client.Do(req)
-
-	if err != nil {
-		if isTimeoutError(err) {
-			if errors.Is(err, context.DeadlineExceeded) {
-				log.Errorf("timeout exceeded (%s) - trying again after 4 seconds", endpoint)
-				time.Sleep(time.Millisecond * 4000) // wait some
-				ctx2, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
-				r.query(ctx2, target, client)
-				cancel()
+		resp, err := r.Options.HTTPClient.Do(req)
+		if err != nil {
+			if isTimeoutError(err) {
+				log.Errorf("timeout exceeded (%s) - retrying in %v", endpoint, retryDelay)
+				time.Sleep(retryDelay)
+				continue
+			} else {
+				log.Warnf("%v - %s", err.Error(), target)
 				return nil
 			}
-		} else {
-			log.Warnf("%v - %s", err.Error(), target)
-			return nil
-		}
-	} else {
-		// try again if too many requests
-		if resp.StatusCode == http.StatusTooManyRequests {
-			log.Errorf("%s", "too many requests - wait and try again (consider lowering concurrency)")
-			time.Sleep(time.Millisecond * 10000) // wait some
-			ctx2, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
-			r.query(ctx2, target, client)
-			cancel()
-			return nil
 		}
 
-		// try again if bad gateway
+		if resp.StatusCode == http.StatusTooManyRequests {
+			log.Errorf("too many requests - retrying in %v (consider lowering concurrency)", retryDelay)
+			time.Sleep(retryDelay)
+			continue
+		}
+
 		if resp.StatusCode == http.StatusBadGateway {
-			log.Errorf("bad gateway (%s) - trying again after 5 seconds", endpoint)
-			time.Sleep(time.Millisecond * 5000) // wait some
-			ctx2, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
-			r.query(ctx2, target, client)
-			cancel()
-			return nil
+			log.Errorf("bad gateway (%s) - retrying in %v", endpoint, retryDelay)
+			time.Sleep(retryDelay)
+			continue
 		}
 
 		bodyBytes, _ := io.ReadAll(resp.Body)
-
 		_ = json.Unmarshal(bodyBytes, &results)
 
 		for i := range results {
@@ -233,12 +242,14 @@ func (r *Runner) query(ctx context.Context, target string, client *http.Client) 
 				results = append(results, results[i])
 			}
 		}
+
+		return results
 	}
 
-	return
+	log.Errorf("failed to get a successful response after %d attempts", maxRetries)
+	return nil
 }
 
-// delay returns total delay from options
 func (r *Runner) getDelay() time.Duration {
 	if r.Options.DelayJitter != 0 {
 		return time.Duration(r.Options.Delay + rand.Intn(r.Options.DelayJitter))

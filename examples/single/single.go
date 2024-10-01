@@ -7,7 +7,9 @@ import (
 )
 
 func main() {
-	results := ctlog.Run("example.com")
+	runner := ctlog.NewRunner()
+
+	results := runner.Run("example.com")
 	for _, result := range results {
 		if result.Domain() != "" {
 			fmt.Println(result.Domain())

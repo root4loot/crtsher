@@ -1,83 +1,62 @@
-![Go version](https://img.shields.io/badge/Go-v1.19-blue.svg) [![Contribute](https://img.shields.io/badge/Contribute-Welcome-green.svg)](CONTRIBUTING.md)
+![Go version](https://img.shields.io/badge/Go-v1.21-blue.svg) [![Contribute](https://img.shields.io/badge/Contribute-Welcome-green.svg)](CONTRIBUTING.md)
 
 # ctlog
-A package used to obtain domains from transparancy logs, either by domain or organization name.
 
-```
+A tool used to grab domains from certificate transparency logs (crt.sh).
+
+## Why another crt.sh tool?
+
+Unlike other tools that often make a single request to crt.sh, this tool is designed to handle the inherent slowness and unreliability of crt.sh, especially when dealing with large responses. It includes retry logic to detect and recover from failed requests. It offers a simple API that can also be used to run tasks asynchronously.
+
+## Installation
+
+```bash
 go get github.com/root4loot/ctlog@latest
 ```
 
-See [Examples](https://github.com/root4loot/ctlog/tree/master/examples)
+## Docker
 
-```go
-package main
-
-import (
-	"fmt"
-
-	"github.com/root4loot/ctlog"
-)
-
-func main() {
-	// run ctlog against targets
-	results := ctlog.Multiple([]string{"example.com", "Hackerone Inc"})
-	for _, result := range results {
-		for _, res := range result {
-			if res.Domain() != "" {
-				fmt.Println(res.Domain())
-			}
-		}
-	}
-}
+```bash
+git clone https://github.com/root4loot/ctlog
+cd ctlog
+docker run --rm -it $(docker build -q .) example.com
 ```
 
-### Output
+## Usage
 
+```bash
+Usage: ctlog [options] <domain | orgname>
+  -f, --file <file>           Specify input file containing targets, one per line.
+  -t, --timeout <seconds>     Set the timeout for each request (default: 90).
+  -c, --concurrency <number>  Set the number of concurrent requests (default: 3).
+      --version               Display the version information.
+      --help                  Display this help message.
+
+Search Query Identity:
+  - Domain Name
+  - Organization Name
+
+Examples:
+  ctlog example.com
+  ctlog "Hackerone Inc"
+  ctlog --file domains.txt
 ```
-hackerone.com
-enorekcah.com
-errors.hackerone.net
-gitaly.code-pdx1.inverselink.com
-www.testserver.inverselink.com
-www.enorekcah.com
-www.hackerone.com
-events.hackerone.com
-go.inverselink.com
-support-app.inverselink.com
-staging.inverselink.com
-testserver.inverselink.com
-attjira.inverselink.com
-signatures.hacker.one
-looker.inverselink.com
-links.hackerone.com
-support.hackerone.com
-phabricator.inverselink.com
-ci.inverselink.com
-info.hackerone.com
-hackerone-user-content.com
-hackerone-ext-content.com
-ci-production.inverselink.com
-storybook.inverselink.com
-go.hacker.one
-sentry.inverselink.com
-ma.hacker.one
-payments-production.inverselink.com
-hacker.one
-ui-docs.inverselink.com
-proteus.inverselink.com
-info.hacker.one
-logstash.inverselink.com
-kibana.inverselink.com
-withinsecurity.com
-bd1.inverselink.com
-bd2.inverselink.com
-bd3.inverselink.com
-www.example.org
-hosted.jivesoftware.com
-uat3.hosted.jivesoftware.com
-www.example.com
-example.com
+
+## Example Running
+
+```bash
+$ ctlog example.com
+[ctlog] (INF) Querying example.com
+[ctlog] (RES) www.example.org
+[ctlog] (RES) hosted.jivesoftware.com
+[ctlog] (RES) uat3.hosted.jivesoftware.com
+[ctlog] (RES) www.example.com
+[ctlog] (RES) example.com
 ```
+
+## As a Library
+
+See the `examples` folder for usage examples.
 
 ## Contributing
 
