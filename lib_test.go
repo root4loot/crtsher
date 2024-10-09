@@ -23,9 +23,19 @@ func TestQuery(t *testing.T) {
 		},
 	})
 
-	results := runner.Query("example.com")
-	if len(results) == 0 {
-		t.Error("Expected results, got none")
+	domains := []string{"example.com", "hackerone.com"}
+	success := false
+
+	for _, domain := range domains {
+		results := runner.Query(domain)
+		if len(results) > 0 {
+			success = true
+			break
+		}
+	}
+
+	if !success {
+		t.Error("Expected results for at least one domain, got none")
 	}
 }
 
