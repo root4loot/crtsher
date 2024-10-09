@@ -1,4 +1,4 @@
-![Go version](https://img.shields.io/badge/Go-v1.21-blue.svg) [![Contribute](https://img.shields.io/badge/Contribute-Welcome-green.svg)](CONTRIBUTING.md)
+![Build Status](https://img.shields.io/github/actions/workflow/status/root4loot/crtsher/test.yml) ![Go version](https://img.shields.io/badge/Go-v1.21-blue.svg) [![Contribute](https://img.shields.io/badge/Contribute-Welcome-green.svg)](CONTRIBUTING.md)
 
 # crtsher
 
