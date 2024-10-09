@@ -9,10 +9,8 @@ import (
 func main() {
 	runner := crtsher.NewRunner()
 
-	results := runner.Run("example.com")
+	results := runner.Query("example.com")
 	for _, result := range results {
-		if result.GetCommonName() != "" {
-			fmt.Println(result.GetCommonName())
-		}
+		fmt.Println(result.GetCommonName())
 	}
 }

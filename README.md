@@ -27,10 +27,11 @@ docker run --rm -it $(docker build -q .) example.com
 ## Usage
 
 ```bash
-Usage: crtsher [options] <domain | orgname>
+Usage: crtsher [options] <domain | orgname> 
   -f, --file <file>           Specify input file containing targets, one per line.
   -t, --timeout <seconds>     Set the timeout for each request (default: 90).
   -c, --concurrency <number>  Set the number of concurrent requests (default: 3).
+      --debug                 Enable debug mode.
       --version               Display the version information.
       --help                  Display this help message.
 

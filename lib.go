@@ -4,13 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"io"
 	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"dario.cat/mergo"
@@ -19,7 +18,6 @@ import (
 
 type Runner struct {
 	Options *Options
-	client  *http.Client
 	Results chan Result
 	Visited map[string]bool
 }
@@ -52,7 +50,7 @@ type Result struct {
 	SerialNumber   string `json:"serial_number"`
 }
 
-var seen map[string]bool // map of seen domains
+var seen map[string]bool
 
 func init() {
 	log.Init("crtsher")
@@ -113,91 +111,32 @@ func newRunner(options *Options) *Runner {
 	}
 }
 
-func (r *Runner) Run(target string) (results []Result) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
-	defer cancel()
-	results = r.query(ctx, target)
-	return uniqueResults(results)
-}
-
-func (r *Runner) RunMultiple(targets []string) (results [][]Result) {
-	for _, target := range targets {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
-		defer cancel()
-		res := r.query(ctx, target)
-		results = append(results, res)
-	}
-	return results
-}
-
-func (r *Runner) RunMultipleAsync(targets []string) {
-	defer close(r.Results)
-	sem := make(chan struct{}, r.Options.Concurrency)
-	var wg sync.WaitGroup
-	for _, target := range targets {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
-		defer cancel()
-		if !r.Visited[target] {
-			r.Visited[target] = true
-
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(u string) {
-				defer func() { <-sem }()
-				defer wg.Done()
-				results := r.query(ctx, u)
-				for _, res := range results {
-					res.Query = u
-					r.Results <- res
-				}
-				time.Sleep(time.Millisecond * 100) // make room for processing results
-			}(target)
-			time.Sleep(r.getDelay() * time.Millisecond)
-		}
-	}
-	wg.Wait()
-}
-
 func (r *Result) GetCommonName() (domain string) {
 	domain = strings.Trim(r.CommonName, "*.")
-	u, err := url.Parse("http://" + domain)
-	if err != nil {
-		return ""
-	}
+	u, _ := url.Parse("http://" + domain)
 	return u.Hostname()
 }
 
 func (r *Result) GetMatchingIdentity() (domain string) {
 	domain = strings.Trim(r.NameValue, "*.")
-	u, err := url.Parse("http://" + domain)
-	if err != nil {
-		return ""
-	}
+	u, _ := url.Parse("http://" + domain)
 	return u.Hostname()
 }
 
-func uniqueResults(results []Result) []Result {
-	uniqueMap := make(map[Result]bool)
-	var uniqueList []Result
-	for _, res := range results {
-		if !uniqueMap[res] {
-			uniqueMap[res] = true
-			uniqueList = append(uniqueList, res)
-		}
-	}
-	return uniqueList
-}
+func (r *Runner) Query(target string) (results []Result) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+	defer cancel()
 
-func (r *Runner) query(ctx context.Context, target string) (results []Result) {
 	log.Infof("Querying %s", target)
 
 	endpoint := "https://crt.sh/?q=" + url.QueryEscape(target) + "&output=json"
 	seen = make(map[string]bool)
 
 	maxRetries := 5
-	retryDelay := 4 * time.Second
+	retryDelay := time.Duration(r.Options.Timeout) * time.Second
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
+		log.Debugf("Attempting request to endpoint: %s (attempt %d)", endpoint, attempt+1)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 		if err != nil {
 			log.Errorf("%v", err.Error())
@@ -208,9 +147,10 @@ func (r *Runner) query(ctx context.Context, target string) (results []Result) {
 			req.Header.Add("User-Agent", r.Options.UserAgent)
 		}
 
+		log.Debug("Sending HTTP request")
 		resp, err := r.Options.HTTPClient.Do(req)
 		if err != nil {
-			if isTimeoutError(err) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				log.Errorf("timeout exceeded (%s) - retrying in %v", endpoint, retryDelay)
 				time.Sleep(retryDelay)
 				continue
@@ -219,6 +159,7 @@ func (r *Runner) query(ctx context.Context, target string) (results []Result) {
 				return nil
 			}
 		}
+		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusTooManyRequests {
 			log.Errorf("too many requests - retrying in %v (consider lowering concurrency)", retryDelay)
@@ -232,6 +173,7 @@ func (r *Runner) query(ctx context.Context, target string) (results []Result) {
 			continue
 		}
 
+		log.Debug("Reading response body")
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		_ = json.Unmarshal(bodyBytes, &results)
 
@@ -242,6 +184,8 @@ func (r *Runner) query(ctx context.Context, target string) (results []Result) {
 				results = append(results, results[i])
 			}
 		}
+
+		time.Sleep(r.getDelay())
 
 		return results
 	}
@@ -255,9 +199,4 @@ func (r *Runner) getDelay() time.Duration {
 		return time.Duration(r.Options.Delay + rand.Intn(r.Options.DelayJitter))
 	}
 	return time.Duration(r.Options.Delay)
-}
-
-func isTimeoutError(err error) bool {
-	e, ok := err.(net.Error)
-	return ok && e.Timeout()
 }
