@@ -10,8 +10,10 @@ Unlike other tools that often make a single request to crt.sh, this tool is desi
 
 ## Installation
 
+Requires Go 1.20 or later.
+
 ```bash
-go get github.com/root4loot/crtsher@latest
+go install github.com/root4loot/cmd/crtsher@latest
 ```
 
 ## Docker
