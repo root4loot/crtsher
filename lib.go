@@ -173,7 +173,6 @@ func (r *Runner) Query(target string) (results []Result) {
 			continue
 		}
 
-		log.Debug("Reading response body")
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		_ = json.Unmarshal(bodyBytes, &results)
 
