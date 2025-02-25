@@ -147,7 +147,6 @@ func (r *Runner) Query(target string) (results []Result) {
 			req.Header.Add("User-Agent", r.Options.UserAgent)
 		}
 
-		log.Debug("Sending HTTP request")
 		resp, err := r.Options.HTTPClient.Do(req)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
