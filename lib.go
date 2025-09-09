@@ -3,6 +3,7 @@ package crtsher
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,6 +15,7 @@ import (
 
 	"dario.cat/mergo"
 	"github.com/root4loot/goutils/log"
+	_ "github.com/lib/pq"
 )
 
 type Runner struct {
@@ -23,13 +25,15 @@ type Runner struct {
 }
 
 type Options struct {
-	Concurrency int
-	Timeout     int
-	Delay       int
-	DelayJitter int
-	UserAgent   string
-	Debug       bool
-	HTTPClient  *http.Client
+	Concurrency     int
+	Timeout         int
+	Delay           int
+	DelayJitter     int
+	UserAgent       string
+	Debug           bool
+	HTTPClient      *http.Client
+	DatabaseURL     string
+	PreferDatabase  bool
 }
 
 type Results struct {
@@ -37,17 +41,18 @@ type Results struct {
 }
 
 type Result struct {
-	Query          string `json:"query"`
-	Error          error  `json:"error"`
-	IssuerCaID     int    `json:"issuer_ca_id"`
-	IssuerName     string `json:"issuer_name"`
-	CommonName     string `json:"common_name"`
-	NameValue      string `json:"name_value"`
-	ID             int64  `json:"id"`
-	EntryTimestamp string `json:"entry_timestamp"`
-	NotBefore      string `json:"not_before"`
-	NotAfter       string `json:"not_after"`
-	SerialNumber   string `json:"serial_number"`
+	Query              string `json:"query"`
+	Error              error  `json:"error"`
+	IssuerCaID         int    `json:"issuer_ca_id"`
+	IssuerName         string `json:"issuer_name"`
+	IssuerOrganization string `json:"issuer_organization"`
+	CommonName         string `json:"common_name"`
+	NameValue          string `json:"name_value"`
+	ID                 int64  `json:"id"`
+	EntryTimestamp     string `json:"entry_timestamp"`
+	NotBefore          string `json:"not_before"`
+	NotAfter           string `json:"not_after"`
+	SerialNumber       string `json:"serial_number"`
 }
 
 var seen map[string]bool
@@ -60,11 +65,13 @@ func DefaultOptions() *Options {
 	const timeout = 90 * time.Second
 
 	return &Options{
-		Concurrency: 3,
-		Timeout:     int(timeout.Seconds()),
-		Delay:       2,
-		UserAgent:   "crtsher",
-		Debug:       false,
+		Concurrency:    3,
+		Timeout:        int(timeout.Seconds()),
+		Delay:          2,
+		UserAgent:      "crtsher",
+		Debug:          false,
+		DatabaseURL:    "postgres://guest@crt.sh:5432/certwatch?sslmode=disable",
+		PreferDatabase: true,
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{
 				ForceAttemptHTTP2:     true,
@@ -124,13 +131,78 @@ func (r *Result) GetMatchingIdentity() (domain string) {
 }
 
 func (r *Runner) Query(target string) (results []Result) {
+	log.Infof("Querying %s", target)
+	seen = make(map[string]bool)
+
+	if r.Options.PreferDatabase {
+		log.Debugf("Attempting database query first")
+		results = r.queryDatabase(target)
+		if len(results) > 0 {
+			log.Debugf("Database query returned %d results", len(results))
+			return results
+		}
+		log.Debugf("Database query failed, falling back to HTTP")
+	}
+
+	return r.queryHTTP(target)
+}
+
+func (r *Runner) queryDatabase(target string) (results []Result) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
 	defer cancel()
 
-	log.Infof("Querying %s", target)
+	db, err := sql.Open("postgres", r.Options.DatabaseURL)
+	if err != nil {
+		log.Debugf("Failed to connect to database: %v", err)
+		return nil
+	}
+	defer db.Close()
+
+	query := `SELECT cai.name_value
+		FROM certificate_and_identities cai
+		WHERE cai.name_value ILIKE ('%%' || $1 || '%%')
+		ORDER BY cai.certificate_id DESC 
+		LIMIT 1000`
+
+	rows, err := db.QueryContext(ctx, query, target)
+	if err != nil {
+		log.Debugf("Database query failed: %v", err)
+		return nil
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var domain string
+		err := rows.Scan(&domain)
+		if err != nil {
+			log.Debugf("Failed to scan row: %v", err)
+			continue
+		}
+
+		domain = strings.TrimSpace(domain)
+		if domain == "" {
+			continue
+		}
+
+		if !seen[domain] {
+			seen[domain] = true
+			result := Result{
+				Query:      target,
+				CommonName: domain,
+				NameValue:  domain,
+			}
+			results = append(results, result)
+		}
+	}
+
+	return results
+}
+
+func (r *Runner) queryHTTP(target string) (results []Result) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+	defer cancel()
 
 	endpoint := "https://crt.sh/?q=" + url.QueryEscape(target) + "&output=json"
-	seen = make(map[string]bool)
 
 	maxRetries := 5
 	retryDelay := time.Duration(r.Options.Timeout) * time.Second

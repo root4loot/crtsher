@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	dario.cat/mergo v1.0.1
+	github.com/lib/pq v1.10.9
 	github.com/root4loot/goutils v0.0.0-20241001082813-799fb4f452c1
 )
 

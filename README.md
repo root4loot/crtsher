@@ -2,11 +2,11 @@
 
 # crtsher
 
-A tool used to grab domains from certificate transparency logs (crt.sh).
+A tool used to grab domains from certificate transparency logs (crt.sh). Supports both direct database access and HTTP API with automatic fallback.
 
 ## Why another crt.sh tool?
 
-Unlike other tools that often make a single request to crt.sh, this tool is designed to handle the inherent slowness and unreliability of crt.sh, especially when dealing with large responses. It includes retry logic to detect and recover from failed requests. It offers a simple API that can also be used to run tasks asynchronously.
+Unlike other tools that often make a single request to crt.sh, this tool is designed to handle the inherent slowness and unreliability of crt.sh. It uses direct PostgreSQL database access for faster queries with automatic fallback to HTTP API when needed.
 
 ## Installation
 
