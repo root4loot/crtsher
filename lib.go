@@ -148,7 +148,7 @@ func (r *Runner) Query(target string) (results []Result) {
 }
 
 func (r *Runner) queryDatabase(target string) (results []Result) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.Options.Timeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	db, err := sql.Open("postgres", r.Options.DatabaseURL)
@@ -157,6 +157,15 @@ func (r *Runner) queryDatabase(target string) (results []Result) {
 		return nil
 	}
 	defer db.Close()
+
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(0)
+	db.SetConnMaxLifetime(5 * time.Second)
+
+	if err := db.PingContext(ctx); err != nil {
+		log.Debugf("Database ping failed: %v", err)
+		return nil
+	}
 
 	query := `SELECT cai.name_value
 		FROM certificate_and_identities cai
